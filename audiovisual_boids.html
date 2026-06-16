@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AudioVisual Boids - Line Art</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #f4f4f4; /* 白系の背景 */
+            color: #111;
+            font-family: 'Space Mono', 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+
+        /* 全体のレイアウト（2カラム） */
+        .layout {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            padding: 2rem;
+            box-sizing: border-box;
+            gap: 2rem;
+        }
+
+        /* 左側のUIエリア */
+        .sidebar {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            height: 100%;
+        }
+
+        /* タイポグラフィ */
+        .main-title { /* クラス名を .title から変更して衝突を回避 */
+            font-size: 1.8rem;
+            font-weight: 400;
+            margin: 0 0 0.2rem 0;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            font-size: 0.65rem;
+            font-weight: 400;
+            margin: 0 0 4rem 0;
+            letter-spacing: 0.2em;
+            color: #777;
+            text-transform: uppercase;
+        }
+
+        /* 階段状のタイポグラフィ用 */
+        .staircase {
+            font-size: 0.75rem; 
+            line-height: 2;
+            letter-spacing: 0.1em;
+            white-space: pre;
+            color: #111;
+            /* 下部のボタンや操作パネルとの間に、目に見える大きな固定余白を確保 */
+            margin-bottom: 8rem; 
+        }
+
+        /* ボタンをタイポグラフィに馴染むミニマルなデザインに変更 */
+        button#start-btn {
+            padding: 4px 0;
+            font-size: 0.8rem;
+            background: transparent;
+            color: #111;
+            border: none;
+            border-bottom: 1px solid #111;
+            cursor: pointer;
+            font-family: inherit;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: color 0.3s ease, border-color 0.3s ease;
+            width: fit-content;
+            margin-top: auto; /* 他の要素から押し下げて下部に配置 */
+            margin-bottom: 2rem;
+        }
+
+        button#start-btn:hover {
+            color: #777;
+            border-color: #777;
+        }
+
+        /* lil-guiをサイドバーに埋め込むためのスタイル */
+        #gui-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-top: auto; /* KUMA KUMAから最大限離して配置 */
+            margin-bottom: 2rem;
+        }
+        
+        .lil-gui.root {
+            position: relative !important;
+            width: 100% !important;
+        }
+
+        /* lil-gui ライトテーマ化 */
+        .lil-gui {
+            --font-family: 'Space Mono', 'Courier New', Courier, monospace; /* フォントを全体に合わせる */
+            --background-color: #ffffff;
+            --text-color: #111111;
+            --title-background-color: #eaeaea;
+            --widget-color: #e0e0e0;
+            --hover-color: #d0d0d0;
+            --focus-color: #c0c0c0;
+            --number-color: #0055aa;
+            --string-color: #0055aa;
+            border: 1px solid #ddd;
+        }
+
+        .instructions {
+            font-size: 0.7rem;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            line-height: 1.5;
+            margin-top: 1rem;
+        }
+
+        /* 右側のヴィジュアルエリア（白枠の中のキャンバス） */
+        .visual-area {
+            flex-grow: 1;
+            position: relative;
+            background-color: #2a3c4a;
+            background-image: linear-gradient(rgba(10, 20, 30, 0.3), rgba(10, 20, 30, 0.6)), url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80');
+            background-size: cover;
+            background-position: center;
+            border-radius: 8px; /* 少し角を丸める */
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        /* シネマティックな四隅の影（ビネット）をヴィジュアルエリア内に限定 */
+        .visual-area::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
+            cursor: crosshair; /* マウスカーソルを的に変更 */
+        }
+
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.18"></script>
+</head>
+<body>
+
+    <div class="layout">
+        <!-- 左側：白枠UI -->
+        <aside class="sidebar">
+            <div>
+                <h1 class="main-title">UNSEEN</h1>
+                <h2 class="subtitle">AUDIOVISUAL EXPERIMENT</h2>
+            </div>
+            
+            <div class="staircase">K
+   U
+      M
+         A
+
+K
+   U
+      M
+         A</div>
+
+            <button id="start-btn">START EXPERIENCE</button>
+            
+            <div id="gui-container"></div>
+            
+            <div class="instructions">
+                INTERACTION:<br>
+                • MOVE MOUSE TO ATTRACT<br>
+                • CLICK TO SCATTER
+            </div>
+        </aside>
+
+        <!-- 右側：映像エリア -->
+        <main class="visual-area">
+            <div id="canvas-container"></div>
+        </main>
+    </div>
+
+    <script>
+        let scene, camera, renderer;
+        const numBoids = 50; 
+        const boids = [];
+        let blackSquare;
+        let particles; 
+        let lights = [];
+        
+        let synth, drone, meter, filter;
+        let isPlaying = false;
+        
+        const maxHistory = 100; 
+
+        const params = {
+            maxSpeed: 0.25, 
+            maxForce: 0.015,
+            separation: 2.5,
+            alignment: 1.0,
+            cohesion: 1.0,
+            mouseAttraction: 0.015,
+            trailLength: 25, 
+            trailJitter: 1, 
+            wiggleSpeed: 15.0,     
+            wiggleSize: 0.6,       
+            wiggleFrequency: 0.4,  
+            volume: -10, 
+            bpm: 90,
+            melodyChance: 0.4
+        };
+        let gui;
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(999, 999); 
+        let mouse3D = new THREE.Vector3();
+        let isMouseDown = false;
+
+        let time = 0;
+
+        class Boid {
+            constructor() {
+                this.position = new THREE.Vector3(
+                    (Math.random() - 0.5) * 40,
+                    (Math.random() - 0.5) * 40,
+                    (Math.random() - 0.5) * 40
+                );
+                this.velocity = new THREE.Vector3(
+                    Math.random() - 0.5,
+                    Math.random() - 0.5,
+                    Math.random() - 0.5
+                ).normalize().multiplyScalar(Math.random() * 0.5 + 0.1);
+                this.acceleration = new THREE.Vector3();
+                this.speedMultiplier = Math.random() * 0.5 + 0.8;
+
+                this.history = [];
+                this.frameCount = Math.floor(Math.random() * 10); 
+
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array(maxHistory * 3);
+                const colors = new Float32Array(maxHistory * 3);
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                
+                const material = new THREE.LineBasicMaterial({ 
+                    vertexColors: true, 
+                    transparent: true, 
+                    opacity: 0.9,
+                    blending: THREE.AdditiveBlending, 
+                    depthWrite: false
+                });
+                this.line = new THREE.Line(geometry, material);
+                scene.add(this.line);
+            }
+
+            flock(boidsArray, mousePos3D, isClicking) {
+                let sep = new THREE.Vector3();
+                let ali = new THREE.Vector3();
+                let coh = new THREE.Vector3();
+                let count = 0;
+
+                const perceptionRadius = 8.0;
+                const separationRadius = 3.0;
+
+                for (let i = 0; i < boidsArray.length; i++) {
+                    let other = boidsArray[i];
+                    if (other === this) continue;
+
+                    let d = this.position.distanceTo(other.position);
+
+                    if (d < perceptionRadius) {
+                        coh.add(other.position);
+                        ali.add(other.velocity);
+                        count++;
+
+                        if (d < separationRadius) {
+                            let diff = this.position.clone().sub(other.position);
+                            diff.normalize().divideScalar(d);
+                            sep.add(diff);
+                        }
+                    }
+                }
+
+                if (count > 0) {
+                    coh.divideScalar(count).sub(this.position).normalize().multiplyScalar(params.maxSpeed).sub(this.velocity).clampLength(0, params.maxForce);
+                    ali.divideScalar(count).normalize().multiplyScalar(params.maxSpeed).sub(this.velocity).clampLength(0, params.maxForce);
+                }
+                
+                let centerPull = new THREE.Vector3(0, 0, 0).sub(this.position).multiplyScalar(0.0005);
+                this.acceleration.add(centerPull);
+
+                let mouseForce = new THREE.Vector3();
+                let dMouse = this.position.distanceTo(mousePos3D);
+                
+                if (mouse.x !== 999) {
+                    mouseForce.copy(this.position).sub(mousePos3D).normalize();
+                    if (isClicking) {
+                        mouseForce.multiplyScalar(0.5 / Math.max(dMouse, 0.1)); 
+                    } else {
+                        let pullStrength = params.mouseAttraction * Math.min(dMouse / 10.0, 1.0);
+                        mouseForce.multiplyScalar(-pullStrength); 
+                    }
+                    this.acceleration.add(mouseForce);
+                }
+
+                sep.multiplyScalar(params.separation);
+                ali.multiplyScalar(params.alignment);
+                coh.multiplyScalar(params.cohesion);
+
+                this.acceleration.add(sep);
+                this.acceleration.add(ali);
+                this.acceleration.add(coh);
+            }
+
+            update(audioIntensity) {
+                const currentMaxSpeed = params.maxSpeed * this.speedMultiplier * (1.0 + audioIntensity * 1.5);
+                
+                this.velocity.add(this.acceleration);
+                this.velocity.clampLength(0, currentMaxSpeed);
+                this.position.add(this.velocity);
+                this.acceleration.set(0, 0, 0);
+
+                this.frameCount++;
+                if (this.frameCount % params.trailJitter === 0) {
+                    this.history.unshift(this.position.clone());
+                    if (this.history.length > params.trailLength) {
+                        this.history.pop();
+                    }
+                }
+
+                let dir = this.velocity.clone().normalize();
+                let up = new THREE.Vector3(0, 1, 0);
+                if (Math.abs(dir.y) > 0.99) {
+                    up.set(1, 0, 0);
+                }
+                let right = new THREE.Vector3().crossVectors(dir, up).normalize();
+
+                const positions = this.line.geometry.attributes.position.array;
+                const colors = this.line.geometry.attributes.color.array;
+                
+                const baseColor = new THREE.Color(0xffffff); 
+                const fadeColor = new THREE.Color(0x333333); 
+                
+                for (let i = 0; i < this.history.length; i++) {
+                    let histPos = this.history[i];
+                    let ratio = i / params.trailLength;
+                    let wiggleOffset = Math.sin(time * params.wiggleSpeed - i * params.wiggleFrequency) * params.wiggleSize * ratio;
+                    let finalPos = histPos.clone().add(right.clone().multiplyScalar(wiggleOffset));
+
+                    positions[i * 3] = finalPos.x;
+                    positions[i * 3 + 1] = finalPos.y;
+                    positions[i * 3 + 2] = finalPos.z;
+
+                    let c = baseColor.clone().lerp(fadeColor, ratio);
+                    colors[i * 3] = c.r;
+                    colors[i * 3 + 1] = c.g;
+                    colors[i * 3 + 2] = c.b;
+                }
+                
+                const lastPos = this.history.length > 0 ? 
+                    this.history[this.history.length - 1].clone().add(right.clone().multiplyScalar(Math.sin(time * params.wiggleSpeed - (this.history.length-1) * params.wiggleFrequency) * params.wiggleSize)) 
+                    : this.position;
+                    
+                for (let i = this.history.length; i < maxHistory; i++) {
+                    positions[i * 3] = lastPos.x;
+                    positions[i * 3 + 1] = lastPos.y;
+                    positions[i * 3 + 2] = lastPos.z;
+                    
+                    colors[i * 3] = 0;
+                    colors[i * 3 + 1] = 0;
+                    colors[i * 3 + 2] = 0;
+                }
+                this.line.geometry.attributes.position.needsUpdate = true;
+                this.line.geometry.attributes.color.needsUpdate = true;
+            }
+        }
+
+        async function initAudio() {
+            await Tone.start();
+            
+            const limiter = new Tone.Limiter(-5).toDestination();
+            const reverb = new Tone.Reverb({ decay: 6, wet: 0.7 }).connect(limiter);
+            const delay = new Tone.FeedbackDelay("8n", 0.4).connect(reverb);
+            const chorus = new Tone.Chorus(4, 2.5, 0.5).connect(reverb).start();
+            meter = new Tone.Meter();
+            
+            filter = new Tone.Filter(300, "lowpass").connect(reverb);
+            drone = new Tone.FMSynth({
+                volume: -5, 
+                harmonicity: 1.5,
+                modulationIndex: 3,
+                oscillator: { type: "sine" },
+                envelope: { attack: 4, decay: 2, sustain: 1, release: 8 },
+                modulation: { type: "square" }
+            }).connect(filter);
+            
+            synth = new Tone.PolySynth(Tone.Synth, {
+                volume: -15, 
+                maxPolyphony: 16, 
+                oscillator: { 
+                    type: "fatsine", 
+                    count: 3,
+                    spread: 20
+                },
+                envelope: { 
+                    attack: 2.0,  
+                    decay: 1.0, 
+                    sustain: 0.8, 
+                    release: 5.0  
+                }
+            }).connect(delay).connect(chorus).connect(meter);
+
+            drone.triggerAttack("D2");
+
+            const dMaj79Scale = ["D4", "E4", "F#4", "A4", "C#5", "D5", "E5", "F#5", "A5"];
+            
+            Tone.Transport.scheduleRepeat((time) => {
+                if (Math.random() < params.melodyChance) {
+                    const note = dMaj79Scale[Math.floor(Math.random() * dMaj79Scale.length)];
+                    const velocity = Math.random() * 0.4 + 0.4;
+                    synth.triggerAttackRelease(note, "1m", time, velocity);
+                }
+                const filterFreq = 300 + Math.sin(Tone.now() * 0.2) * 200;
+                filter.frequency.rampTo(filterFreq, 0.5);
+                
+            }, "4n");
+
+            Tone.Transport.bpm.value = params.bpm;
+            Tone.Destination.volume.value = params.volume;
+            Tone.Transport.start();
+            isPlaying = true;
+        }
+
+        function initGUI() {
+            const guiContainer = document.getElementById('gui-container');
+            gui = new lil.GUI({ container: guiContainer, title: 'PARAMETERS' });
+            
+            const visualFolder = gui.addFolder('Visuals (Lines)');
+            visualFolder.add(params, 'maxSpeed', 0.05, 1.0, 0.01).name('Max Speed');
+            visualFolder.add(params, 'trailLength', 5, maxHistory, 1).name('Line Length').onChange(v => {
+                boids.forEach(b => {
+                    if (b.history.length > v) b.history.length = v;
+                });
+            });
+            visualFolder.add(params, 'trailJitter', 1, 10, 1).name('Line Jitter').onChange(v => {
+                params.trailJitter = Math.floor(v);
+            });
+            visualFolder.add(params, 'separation', 0.0, 5.0, 0.1).name('Separation');
+            visualFolder.add(params, 'cohesion', 0.0, 3.0, 0.1).name('Cohesion');
+            visualFolder.add(params, 'mouseAttraction', 0.0, 0.1, 0.001).name('Mouse Pull');
+
+            const fishFolder = gui.addFolder('Fish Motion');
+            fishFolder.add(params, 'wiggleSpeed', 0.0, 30.0, 0.1).name('Tail Speed');
+            fishFolder.add(params, 'wiggleSize', 0.0, 3.0, 0.1).name('Tail Size');
+            fishFolder.add(params, 'wiggleFrequency', 0.0, 1.0, 0.01).name('Wave Density');
+
+            const audioFolder = gui.addFolder('Audio');
+            audioFolder.add(params, 'volume', -40, 10, 1).name('Volume (dB)').onChange(v => {
+                if(Tone.Destination) Tone.Destination.volume.rampTo(v, 0.1);
+            });
+            audioFolder.add(params, 'bpm', 40, 180, 1).name('Tempo (BPM)').onChange(v => {
+                if(Tone.Transport) Tone.Transport.bpm.value = v;
+            });
+            audioFolder.add(params, 'melodyChance', 0.0, 1.0, 0.05).name('Melody Chance');
+
+            gui.domElement.style.display = 'none';
+        }
+
+        function initThreeJS() {
+            const container = document.getElementById('canvas-container');
+            // コンテナのサイズを取得して設定
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0x000000, 0); 
+            container.appendChild(renderer.domElement);
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x1a2b3c, 0.015);
+            
+            camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+            camera.position.set(0, 0, 50);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            const pointLight1 = new THREE.PointLight(0xffffff, 2, 100);
+            pointLight1.position.set(10, 20, 20);
+            scene.add(pointLight1);
+            lights.push(pointLight1);
+
+            const pointLight2 = new THREE.PointLight(0xffffff, 1.5, 100);
+            pointLight2.position.set(-10, -20, 10);
+            scene.add(pointLight2);
+            lights.push(pointLight2);
+
+            const particleCount = 1500;
+            const particleGeometry = new THREE.BufferGeometry();
+            const particlePositions = new Float32Array(particleCount * 3);
+            for(let i = 0; i < particleCount * 3; i++) {
+                particlePositions[i] = (Math.random() - 0.5) * 100;
+            }
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+            const particleMaterial = new THREE.PointsMaterial({ 
+                color: 0xffffff, 
+                size: 0.03, 
+                transparent: true, 
+                opacity: 0.3, 
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            particles = new THREE.Points(particleGeometry, particleMaterial);
+            scene.add(particles);
+
+            const planeGeometry = new THREE.PlaneGeometry(12, 14, 40, 40);
+            planeGeometry.setAttribute('basePosition', planeGeometry.attributes.position.clone());
+            const planeMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xffffff, 
+                wireframe: true,       
+                transparent: true, 
+                opacity: 0.3,          
+                side: THREE.DoubleSide
+            });
+            blackSquare = new THREE.Mesh(planeGeometry, planeMaterial);
+            scene.add(blackSquare);
+
+            for (let i = 0; i < numBoids; i++) {
+                boids.push(new Boid());
+            }
+
+            window.addEventListener('resize', onWindowResize, false);
+            
+            animate();
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            if (!container) return;
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+
+        // --- マウスイベントの対象をウィンドウ全体ではなく、右側のキャンバスエリアに限定 ---
+        const canvasContainer = document.getElementById('canvas-container');
+
+        canvasContainer.addEventListener('mousemove', (e) => {
+            const rect = canvasContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            mouse.x = (x / rect.width) * 2 - 1;
+            mouse.y = -(y / rect.height) * 2 + 1;
+        });
+
+        canvasContainer.addEventListener('mouseleave', () => {
+            // キャンバス外に出たら影響を消す
+            mouse.x = 999;
+            mouse.y = 999;
+        });
+
+        canvasContainer.addEventListener('mousedown', () => {
+            isMouseDown = true;
+            if (isPlaying && synth) {
+                synth.triggerAttackRelease(["D5", "F#5", "A5", "C#6", "E6"], "1m", Tone.now(), 0.1);
+                boids.forEach(b => { b.history = []; });
+
+                // --- ピッチベンド効果（空間がグニャッと曲がる演出） ---
+                if (drone) {
+                    // ベース音のピッチを一瞬(-300セント)下げて、1秒かけて戻す
+                    drone.detune.rampTo(-300, 0.1); 
+                    drone.detune.rampTo(0, 1.0, "+0.1"); 
+                }
+                
+                // 和音（PolySynth）のピッチも滑らかにベンドさせて戻す
+                for (let i = 0; i <= 10; i++) {
+                    setTimeout(() => {
+                        if (synth) synth.set({ detune: -300 * (1 - i / 10) });
+                    }, i * 60); 
+                }
+            }
+        });
+
+        canvasContainer.addEventListener('mouseup', () => {
+            isMouseDown = false;
+        });
+
+        // --- スタートボタン ---
+        document.getElementById('start-btn').addEventListener('click', async (e) => {
+            e.target.style.display = 'none'; // ボタンを非表示に
+            
+            if (gui) gui.domElement.style.display = 'block'; // UIパネルを表示
+
+            await initAudio();
+            if (!scene) {
+                initThreeJS();
+            }
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += 0.01;
+
+            let audioIntensity = 0;
+            if (isPlaying && meter) {
+                const db = meter.getValue();
+                audioIntensity = Math.max(0, (db + 50) / 50); 
+            }
+
+            raycaster.setFromCamera(mouse, camera);
+            raycaster.ray.at(camera.position.length(), mouse3D);
+
+            for (let i = 0; i < boids.length; i++) {
+                boids[i].flock(boids, mouse3D, isMouseDown);
+                boids[i].update(audioIntensity);
+            }
+
+            if (particles) {
+                particles.rotation.y = time * 0.02;
+                particles.rotation.x = time * 0.01;
+                particles.material.size = 0.03 + audioIntensity * 0.04;
+            }
+
+            const targetFOV = 60 + audioIntensity * 10;
+            camera.fov += (targetFOV - camera.fov) * 0.1;
+            camera.updateProjectionMatrix();
+
+            camera.position.x = Math.sin(time * 0.1) * 30;
+            camera.position.z = Math.cos(time * 0.1) * 50;
+            camera.lookAt(0, 0, 0);
+
+            if (blackSquare) {
+                blackSquare.lookAt(camera.position);
+                
+                const positions = blackSquare.geometry.attributes.position;
+                const basePositions = blackSquare.geometry.attributes.basePosition;
+
+                for (let i = 0; i < positions.count; i++) {
+                    const bx = basePositions.getX(i);
+                    const by = basePositions.getY(i);
+                    const bz = basePositions.getZ(i);
+                    
+                    const nx = bx / 6.0; 
+                    const ny = by / 7.0; 
+                    const dist = Math.sqrt(nx*nx + ny*ny);
+                    const edgeWeight = Math.min(dist, 1.0); 
+
+                    const wave1 = Math.sin(bx * 0.5 + time * 2.0) * Math.cos(by * 0.5 + time * 1.5);
+                    const wave2 = Math.sin(bx * 1.2 - time) * Math.sin(by * 0.8 + time * 2.5);
+                    const noise = wave1 + wave2;
+
+                    const distortion = noise * (0.8 + audioIntensity * 4.0) * Math.pow(edgeWeight, 1.2);
+
+                    positions.setX(i, bx + Math.sin(time * 1.5 + by) * distortion * 0.4);
+                    positions.setY(i, by + Math.cos(time * 1.5 + bx) * distortion * 0.4);
+                    positions.setZ(i, bz + distortion);
+                }
+                positions.needsUpdate = true;
+            }
+
+            renderer.render(scene, camera);
+        }
+        
+        // ページロード時にGUIだけ初期化しておく
+        initGUI();
+
+    </script>
+</body>
+</html>
