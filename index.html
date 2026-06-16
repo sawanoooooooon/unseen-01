@@ -37,7 +37,7 @@
         }
 
         /* タイポグラフィ */
-        .main-title { /* クラス名を .title から変更して衝突を回避 */
+        .main-title {
             font-size: 1.8rem;
             font-weight: 400;
             margin: 0 0 0.2rem 0;
@@ -48,7 +48,7 @@
         .subtitle {
             font-size: 0.65rem;
             font-weight: 400;
-            margin: 0 0 4rem 0;
+            margin: 0 0 3rem 0;
             letter-spacing: 0.2em;
             color: #777;
             text-transform: uppercase;
@@ -60,40 +60,54 @@
             line-height: 2;
             letter-spacing: 0.1em;
             white-space: pre;
-            color: #111;
-            /* 下部のボタンや操作パネルとの間に、目に見える大きな固定余白を確保 */
-            margin-bottom: 8rem; 
+            /* 下部のUIと被らないように適度な余白を設定 */
+            margin-bottom: 2rem; 
         }
 
-        /* ボタンをタイポグラフィに馴染むミニマルなデザインに変更 */
+        /* 目立つように枠線付き・点滅（パルス）アニメーションを黄色系に設定 */
+        @keyframes pulse-button {
+            0%, 100% {
+                border-color: #111;
+                color: #111;
+                box-shadow: 0 0 0 0 rgba(17, 17, 17, 0.1);
+            }
+            50% {
+                border-color: #ffcc00; /* 目を引く上品なゴールド・イエローのアクセント */
+                color: #e5b800;
+                box-shadow: 0 0 8px 2px rgba(255, 204, 0, 0.2);
+            }
+        }
+
         button#start-btn {
-            padding: 4px 0;
+            padding: 8px 16px;
             font-size: 0.8rem;
             background: transparent;
             color: #111;
-            border: none;
-            border-bottom: 1px solid #111;
+            border: 1px solid #111;
+            border-radius: 4px;
             cursor: pointer;
             font-family: inherit;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
-            transition: color 0.3s ease, border-color 0.3s ease;
+            letter-spacing: 0.12em;
+            animation: pulse-button 1.8s infinite ease-in-out;
             width: fit-content;
             margin-top: auto; /* 他の要素から押し下げて下部に配置 */
             margin-bottom: 2rem;
+            transition: all 0.3s ease;
         }
 
         button#start-btn:hover {
-            color: #777;
-            border-color: #777;
+            background: #111;
+            color: #fff;
+            border-color: #111;
+            animation: none; /* ホバー時は点滅を止める */
         }
 
         /* lil-guiをサイドバーに埋め込むためのスタイル */
         #gui-container {
-            flex-grow: 1;
-            overflow-y: auto;
+            width: 100%;
             margin-top: auto; /* KUMA KUMAから最大限離して配置 */
-            margin-bottom: 2rem;
+            margin-bottom: 1rem;
         }
         
         .lil-gui.root {
@@ -101,17 +115,22 @@
             width: 100% !important;
         }
 
-        /* lil-gui ライトテーマ化 */
+        /* lil-gui ライトテーマ化 & 極限までコンパクトにしてスクロールを徹底防止 */
         .lil-gui {
-            --font-family: 'Space Mono', 'Courier New', Courier, monospace; /* フォントを全体に合わせる */
+            --font-family: 'Space Mono', 'Courier New', Courier, monospace;
             --background-color: #ffffff;
             --text-color: #111111;
             --title-background-color: #eaeaea;
-            --widget-color: #e0e0e0;
-            --hover-color: #d0d0d0;
-            --focus-color: #c0c0c0;
+            --widget-color: #f0f0f0;
+            --hover-color: #e5e5e5;
+            --focus-color: #dcdcdc;
             --number-color: #0055aa;
             --string-color: #0055aa;
+            --padding: 3px;          /* 余白を縮小 */
+            --spacing: 3px;          /* 間隔を縮小 */
+            --font-size: 10px;        /* 文字サイズを小さく */
+            --title-height: 24px;    /* タイトルバーを低く */
+            --widget-height: 18px;   /* 入力欄を低く */
             border: 1px solid #ddd;
         }
 
@@ -137,7 +156,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         }
 
-        /* シネマティックな四隅の影（ビネット）をヴィジュアルエリア内に限定 */
+        /* シネマティックな四隅 of 影（ビネット）をヴィジュアルエリア内に限定 */
         .visual-area::after {
             content: '';
             position: absolute;
@@ -481,12 +500,16 @@ K
             });
             audioFolder.add(params, 'melodyChance', 0.0, 1.0, 0.05).name('Melody Chance');
 
+            // ★フォルダーを最初から折りたたんで（閉じて）おくことで、画面の縦サイズ超過＆スクロールを徹底防止
+            visualFolder.close();
+            fishFolder.close();
+            audioFolder.close();
+
             gui.domElement.style.display = 'none';
         }
 
         function initThreeJS() {
             const container = document.getElementById('canvas-container');
-            // コンテナのサイズを取得して設定
             const width = container.clientWidth;
             const height = container.clientHeight;
 
@@ -565,7 +588,6 @@ K
             renderer.setSize(width, height);
         }
 
-        // --- マウスイベントの対象をウィンドウ全体ではなく、右側のキャンバスエリアに限定 ---
         const canvasContainer = document.getElementById('canvas-container');
 
         canvasContainer.addEventListener('mousemove', (e) => {
@@ -577,7 +599,6 @@ K
         });
 
         canvasContainer.addEventListener('mouseleave', () => {
-            // キャンバス外に出たら影響を消す
             mouse.x = 999;
             mouse.y = 999;
         });
@@ -588,14 +609,11 @@ K
                 synth.triggerAttackRelease(["D5", "F#5", "A5", "C#6", "E6"], "1m", Tone.now(), 0.1);
                 boids.forEach(b => { b.history = []; });
 
-                // --- ピッチベンド効果（空間がグニャッと曲がる演出） ---
                 if (drone) {
-                    // ベース音のピッチを一瞬(-300セント)下げて、1秒かけて戻す
                     drone.detune.rampTo(-300, 0.1); 
                     drone.detune.rampTo(0, 1.0, "+0.1"); 
                 }
                 
-                // 和音（PolySynth）のピッチも滑らかにベンドさせて戻す
                 for (let i = 0; i <= 10; i++) {
                     setTimeout(() => {
                         if (synth) synth.set({ detune: -300 * (1 - i / 10) });
@@ -610,7 +628,7 @@ K
 
         // --- スタートボタン ---
         document.getElementById('start-btn').addEventListener('click', async (e) => {
-            e.target.style.display = 'none'; // ボタンを非表示に
+            e.target.style.display = 'none'; // ボタンを非表示にする（GUIが表示されるスペースを空ける）
             
             if (gui) gui.domElement.style.display = 'block'; // UIパネルを表示
 
